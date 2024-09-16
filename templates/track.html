@@ -3,9 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track Wallet</title>
+    <title>Track Ethereum Wallet</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.5.0/web3.min.js"></script> <!-- Add Web3.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.5.0/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.0/d3.min.js"></script>
+    <style>
+        .tooltip {
+            position: absolute;
+            background: lightgrey;
+            padding: 5px;
+            border-radius: 5px;
+            pointer-events: none;
+            box-shadow: 0px 0px 5px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        .highlighted {
+            stroke: orange;
+            stroke-width: 2px;
+        }
+        .zoomed {
+            transform: scale(1.5);
+            transform-origin: center;
+        }
+    </style>
 </head>
 <body>
     <div class="container mt-5">
@@ -17,18 +37,39 @@
             </div>
             <button type="button" class="btn btn-primary" onclick="trackWallet()">Track</button>
         </form>
-        <div id="result"></div>
+        <div id="result" class="mt-3"></div>
+
         <h2 class="mt-5">Visualize Transactions</h2>
-        <a href="/visualize" class="btn btn-secondary">View Transaction Flow</a>
+        <form id="filter-form" class="mb-3">
+            <div class="form-group">
+                <label for="min_amount">Min Amount (ETH)</label>
+                <input type="number" step="0.01" class="form-control" id="min_amount">
+            </div>
+            <div class="form-group">
+                <label for="max_amount">Max Amount (ETH)</label>
+                <input type="number" step="0.01" class="form-control" id="max_amount">
+            </div>
+            <div class="form-group">
+                <label for="start_date">Start Date</label>
+                <input type="date" class="form-control" id="start_date">
+            </div>
+            <div class="form-group">
+                <label for="end_date">End Date</label>
+                <input type="date" class="form-control" id="end_date">
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="visualizeTransactions()">Apply Filters</button>
+            <button type="button" class="btn btn-secondary" onclick="visualizeTransactions(true)">Visualize All</button>
+        </form>
+        <div id="graph-container" style="width: 100%; height: 600px;"></div>
     </div>
 
     <script>
         let web3;
-        
+
         // Check if Web3 is injected
         if (typeof window.ethereum !== 'undefined') {
             web3 = new Web3(window.ethereum);
-            window.ethereum.request({ method: 'eth_requestAccounts' }) // Request user permission
+            window.ethereum.request({ method: 'eth_requestAccounts' }) 
                 .then(() => {
                     console.log('Web3 initialized');
                 })
@@ -40,11 +81,11 @@
             alert('Please install MetaMask!');
         }
 
+        // Function to track wallet balance
         function trackWallet() {
             const address = document.getElementById('wallet_address').value;
 
-            // Check if Web3 instance and utils are available
-            if (web3 && web3.utils && web3.utils.isAddress(address)) {
+            if (web3 && web3.utils.isAddress(address)) {
                 web3.eth.getBalance(address)
                     .then(balance => {
                         const balanceEth = web3.utils.fromWei(balance, 'ether');
@@ -56,6 +97,168 @@
                     });
             } else {
                 document.getElementById('result').innerText = 'Invalid Ethereum address or Web3 not initialized!';
+            }
+        }
+
+        // Function to fetch and visualize transactions
+        function visualizeTransactions(includeFilters = true) {
+            const address = document.getElementById('wallet_address').value;
+            const minAmount = includeFilters ? parseFloat(document.getElementById('min_amount').value) || 0 : 0;
+            const maxAmount = includeFilters ? parseFloat(document.getElementById('max_amount').value) || Infinity : Infinity;
+            const startDate = includeFilters ? new Date(document.getElementById('start_date').value).getTime() / 1000 || 0 : 0;
+            const endDate = includeFilters ? new Date(document.getElementById('end_date').value).getTime() / 1000 || Infinity : Infinity;
+
+            if (!web3.utils.isAddress(address)) {
+                alert('Invalid Ethereum address');
+                return;
+            }
+
+            const etherscanApiKey = 'NMJBX9W6W49S8CP32XP1X8INE3TDXCJ7C9'; // Replace with your Sepolia API key
+            const url = `https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${etherscanApiKey}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === '1') {
+                        const transactions = data.result
+                            .map(tx => ({
+                                from: tx.from,
+                                to: tx.to,
+                                value: web3.utils.fromWei(tx.value, 'ether'),
+                                hash: tx.hash,
+                                timestamp: tx.timeStamp
+                            }))
+                            .filter(tx => tx.value >= minAmount && tx.value <= maxAmount && tx.timestamp >= startDate && tx.timestamp <= endDate);
+
+                        drawGraph(transactions);
+                    } else {
+                        alert('No transactions found for this wallet.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching transactions:', error);
+                });
+        }
+
+        // Function to draw the graph using D3.js
+        function drawGraph(transactions) {
+            // Clear existing graph
+            document.getElementById('graph-container').innerHTML = '';
+
+            const width = 800;
+            const height = 600;
+
+            const svg = d3.select('#graph-container')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .call(d3.zoom().scaleExtent([0.5, 3]).on('zoom', zoom))
+                .append('g');
+
+            const nodes = {};
+            transactions.forEach(tx => {
+                nodes[tx.from] = { id: tx.from };
+                nodes[tx.to] = { id: tx.to };
+            });
+
+            const links = transactions.map(tx => ({
+                source: tx.from,
+                target: tx.to,
+                value: tx.value,
+                hash: tx.hash,
+                timestamp: tx.timestamp
+            }));
+
+            const simulation = d3.forceSimulation(Object.values(nodes))
+                .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-500))
+                .force('center', d3.forceCenter(width / 2, height / 2));
+
+            const link = svg.append('g')
+                .selectAll('line')
+                .data(links)
+                .enter()
+                .append('line')
+                .attr('stroke', d => d.value > 1 ? 'red' : '#999')
+                .attr('stroke-width', d => Math.sqrt(d.value))
+                .on('mouseover', function(event, d) {
+                    d3.select(this).classed('highlighted', true);
+                    d3.selectAll('circle')
+                        .filter(node => node.id === d.source || node.id === d.target)
+                        .attr('fill', 'orange');
+                    tooltip.html(`Transaction Hash: ${d.hash}<br>Timestamp: ${new Date(d.timestamp * 1000).toLocaleString()}<br>Amount: ${d.value} ETH`)
+                        .style('visibility', 'visible');
+                })
+                .on('mousemove', function(event) {
+                    tooltip.style('top', (event.pageY + 5) + 'px')
+                        .style('left', (event.pageX + 5) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this).classed('highlighted', false);
+                    d3.selectAll('circle').attr('fill', '#69b3a2');
+                    tooltip.style('visibility', 'hidden');
+                });
+
+            const node = svg.append('g')
+                .selectAll('circle')
+                .data(Object.values(nodes))
+                .enter()
+                .append('circle')
+                .attr('r', 5)
+                .attr('fill', '#69b3a2')
+                .call(d3.drag()
+                    .on('start', dragStarted)
+                    .on('drag', dragged)
+                    .on('end', dragEnded))
+                .on('mouseover', function(event, d) {
+                    d3.select(this).classed('zoomed', true);
+                    tooltip.html(`Address: ${d.id}<br>Transactions: ${transactions.filter(tx => tx.from === d.id || tx.to === d.id).length}`)
+                        .style('visibility', 'visible');
+                })
+                .on('mousemove', function(event) {
+                    tooltip.style('top', (event.pageY + 5) + 'px')
+                        .style('left', (event.pageX + 5) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this).classed('zoomed', false);
+                    tooltip.style('visibility', 'hidden');
+                });
+
+            const tooltip = d3.select('body').append('div')
+                .attr('class', 'tooltip')
+                .style('visibility', 'hidden');
+
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+            });
+
+            function zoom(event) {
+                svg.attr('transform', event.transform);
+            }
+
+            function dragStarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragEnded(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
             }
         }
     </script>
