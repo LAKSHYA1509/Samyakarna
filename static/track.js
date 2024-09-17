@@ -1,0 +1,300 @@
+let web3;
+
+// Check if Web3 is injected
+if (typeof window.ethereum !== 'undefined') {
+    web3 = new Web3(window.ethereum);
+    window.ethereum.request({ method: 'eth_requestAccounts' })
+        .then(() => {
+            console.log('Web3 initialized');
+        })
+        .catch(error => {
+            console.error('User denied account access:', error);
+            alert('Please allow access to your Ethereum account.');
+        });
+} else {
+    alert('Please install MetaMask!');
+}
+
+// Function to track wallet balance
+function trackWallet() {
+    const address = document.getElementById('wallet_address').value;
+
+    if (web3 && web3.utils.isAddress(address)) {
+        web3.eth.getBalance(address)
+            .then(balance => {
+                const balanceEth = web3.utils.fromWei(balance, 'ether');
+                document.getElementById('result').innerText = `Balance of ${address}: ${balanceEth} ETH`;
+            })
+            .catch(error => {
+                document.getElementById('result').innerText = 'Error fetching balance.';
+                console.error(error);
+            });
+    } else {
+        document.getElementById('result').innerText = 'Invalid Ethereum address or Web3 not initialized!';
+    }
+}
+
+// Function to fetch and visualize transactions
+function visualizeTransactions(includeFilters = true) {
+    const address = document.getElementById('wallet_address').value;
+    if (!web3.utils.isAddress(address)) {
+        alert('Invalid Ethereum address');
+        return;
+    }
+
+    const etherscanApiKey = 'NMJBX9W6W49S8CP32XP1X8INE3TDXCJ7C9'; // Replace with your Sepolia API key
+    const url = `https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${etherscanApiKey}`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === '1') {
+                const transactions = data.result
+                    .map(tx => ({
+                        from: tx.from,
+                        to: tx.to,
+                        value: parseFloat(web3.utils.fromWei(tx.value, 'ether')),
+                        hash: tx.hash,
+                        timestamp: parseInt(tx.timeStamp)
+                    }));
+
+                drawGraph(transactions);
+                updateTransactionTable(transactions);
+            } else {
+                alert('No transactions found for this wallet.');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching transactions:', error);
+        });
+}
+
+// Function to draw the graph using D3.js
+function drawGraph(transactions) {
+    // Clear existing graph
+    document.getElementById('graph-container').innerHTML = '';
+
+    const width = 800;
+    const height = 600;
+
+    const svg = d3.select('#graph-container')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    const nodes = {};
+    transactions.forEach(tx => {
+        nodes[tx.from] = { id: tx.from };
+        nodes[tx.to] = { id: tx.to };
+    });
+
+    const links = transactions.map(tx => ({
+        source: tx.from,
+        target: tx.to,
+        value: tx.value,
+        hash: tx.hash,
+        timestamp: tx.timestamp
+    }));
+
+    const simulation = d3.forceSimulation(Object.values(nodes))
+        .force('link', d3.forceLink(links).id(d => d.id).distance(150))
+        .force('charge', d3.forceManyBody().strength(-400))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+
+    const link = svg.append('g')
+        .selectAll('line')
+        .data(links)
+        .enter()
+        .append('line')
+        .attr('stroke', '#ffb3b3') // Changed to black
+        .attr('stroke-width', d => Math.sqrt(d.value) * 2);
+
+    const node = svg.append('g')
+        .selectAll('circle')
+        .data(Object.values(nodes))
+        .enter()
+        .append('circle')
+        .attr('r', 8)
+        .attr('fill', '#ff5733') // Changed to orange
+        .call(d3.drag()
+            .on('start', dragStarted)
+            .on('drag', dragged)
+            .on('end', dragEnded));
+
+    const tooltip = d3.select('body').append('div')
+        .attr('class', 'tooltip')
+        .style('position', 'absolute')
+        .style('visibility', 'hidden')
+        .style('background', '#fff')
+        .style('border', '1px solid #ccc')
+        .style('padding', '5px')
+        .style('border-radius', '3px');
+
+    node.append('title')
+        .text(d => d.id);
+
+    node.on('mouseenter', function(event, d) {
+        d3.select(this).attr('fill', 'orange'); // Highlight node
+        tooltip.html(`Wallet Address: ${d.id}`)
+            .style('visibility', 'visible');
+    })
+    .on('mousemove', function(event) {
+        tooltip.style('top', (event.pageY + 5) + 'px')
+            .style('left', (event.pageX + 5) + 'px');
+    })
+    .on('mouseleave', function() {
+        d3.select(this).attr('fill', '#ff5733'); // Reset node color
+        tooltip.style('visibility', 'hidden');
+    });
+
+    link.on('mouseenter', function(event, d) {
+        d3.select(this).attr('stroke', 'orange'); // Highlight link
+        tooltip.html(`Transaction Hash: ${d.hash}<br>Timestamp: ${new Date(d.timestamp * 1000).toLocaleString()}<br>Amount: ${d.value} ETH`)
+            .style('visibility', 'visible');
+    })
+    .on('mousemove', function(event) {
+        tooltip.style('top', (event.pageY + 5) + 'px')
+            .style('left', (event.pageX + 5) + 'px');
+    })
+    .on('mouseleave', function() {
+        d3.select(this).attr('stroke', '#000'); // Reset link color
+        tooltip.style('visibility', 'hidden');
+    });
+
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        node
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+    });
+
+    function dragStarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragEnded(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+}
+
+// Function to update the transaction table
+function updateTransactionTable(transactions) {
+    const tbody = document.getElementById('transaction-table-body');
+    tbody.innerHTML = ''; // Clear existing table rows
+
+    // Sort transactions by value in descending order
+    transactions.sort((a, b) => b.value - a.value);
+
+    transactions.forEach(tx => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${tx.from}</td>
+            <td>${tx.to}</td>
+            <td>${tx.value.toFixed(4)}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+
+// Function to export the graph as a PDF
+document.getElementById('exportButton').addEventListener('click', () => {
+    html2canvas(document.getElementById('graph-container')).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF();
+        pdf.addImage(imgData, 'PNG', 0, 0);
+        pdf.save('graph.pdf');
+    });
+});
+
+// Flag transactions based on value
+function flagTransactions(transactions) {
+    const threshold = 5; // Set a threshold for flagging
+    const flagged = transactions.filter(tx => tx.value > threshold);
+    
+    // Display flagged transactions
+    const tableBody = document.getElementById('transaction-table-body');
+    tableBody.innerHTML = ''; // Clear existing rows
+
+    flagged.forEach(tx => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${tx.from}</td>
+            <td>${tx.to}</td>
+            <td>${tx.value}</td>
+        `;
+        row.style.backgroundColor = '#ffdddd'; // Highlight flagged rows
+        tableBody.appendChild(row);
+    });
+}
+
+// Tag addresses
+const taggedAddresses = {}; // Store tagged addresses and their labels
+
+function tagAddress() {
+    const address = document.getElementById('tag_address').value;
+    const label = document.getElementById('tag_label').value;
+    
+    if (web3.utils.isAddress(address)) {
+        taggedAddresses[address] = label;
+        alert(`Address tagged: ${address} as ${label}`);
+        displayTaggedAddresses();
+    } else {
+        alert('Invalid address');
+    }
+}
+
+// Display tagged addresses
+function displayTaggedAddresses() {
+    const taggedList = document.getElementById('tagged-addresses');
+    taggedList.innerHTML = '';
+
+    for (const [address, label] of Object.entries(taggedAddresses)) {
+        const li = document.createElement('li');
+        li.textContent = `${address} - ${label}`;
+        taggedList.appendChild(li);
+    }
+}
+
+// Search transactions
+function searchTransactions() {
+    const keyword = document.getElementById('searchKeyword').value.toLowerCase();
+    
+    if (keyword) {
+        const rows = document.querySelectorAll('#transaction-table-body tr');
+        rows.forEach(row => {
+            const cells = row.getElementsByTagName('td');
+            let found = false;
+            for (let i = 0; i < cells.length; i++) {
+                if (cells[i].innerText.toLowerCase().includes(keyword)) {
+                    found = true;
+                    break;
+                }
+            }
+            row.style.display = found ? '' : 'none';
+        });
+    } else {
+        document.querySelectorAll('#transaction-table-body tr').forEach(row => row.style.display = '');
+    }
+}
+
+// Compare with historical data
+function compareWithHistoricalData(transactions) {
+    // Placeholder function for comparing transactions with historical data
+    // Implementation would depend on the source of historical data
+    console.log('Comparing with historical data:', transactions);
+}

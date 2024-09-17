@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.5.0/web3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.0/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.3.2/jspdf.min.js"></script>
     <style>
         .tooltip {
             position: absolute;
@@ -24,6 +26,41 @@
         .zoomed {
             transform: scale(1.5);
             transform-origin: center;
+        }
+        #loader {
+            display: none;
+            border: 5px solid #f3f3f3; /* Light grey */
+            border-top: 5px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-top: -25px;
+            margin-left: -25px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        svg {
+            border: 1px solid #ddd;
+        }
+        #transaction-table {
+            margin-top: 20px;
+        }
+        #transaction-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #transaction-table th, #transaction-table td {
+            text-align: left;
+            padding: 8px;
+        }
+        #transaction-table th {
+            background-color: #f4f4f4;
         }
     </style>
 </head>
@@ -58,209 +95,42 @@
                 <input type="date" class="form-control" id="end_date">
             </div>
             <button type="button" class="btn btn-secondary" onclick="visualizeTransactions()">Apply Filters</button>
-            <button type="button" class="btn btn-secondary" onclick="visualizeTransactions(true)">Visualize All</button>
+            <button type="button" class="btn btn-secondary" onclick="visualizeTransactions(false)">Visualize All</button>
         </form>
-        <div id="graph-container" style="width: 100%; height: 600px;"></div>
+        <div id="graph-container" style="width: 800px; height: 600px;"></div>
+        <button id="exportButton" class="btn btn-primary mt-3">Export Graph as PDF</button>
+
+
+        <div class="form-group">
+    <label for="tag_address">Tag Address</label>
+    <input type="text" class="form-control" id="tag_address" placeholder="Enter address to tag">
+    <input type="text" class="form-control mt-2" id="tag_label" placeholder="Enter tag label">
+    <button type="button" class="btn btn-secondary mt-2" onclick="tagAddress()">Tag Address</button>
+</div>
+
+<!-- Display tagged addresses -->
+<!-- Display tagged addresses -->
+<div class="mt-5">
+    <h3>Tagged Addresses</h3>
+    <ul id="tagged-addresses"></ul>
+</div>
+        
+        <div id="transaction-table" class="mt-5">
+            <h3>Transaction Table</h3>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Value (ETH)</th>
+                    </tr>
+                </thead>
+                <tbody id="transaction-table-body"></tbody>
+            </table>
+        </div>
+
+        <div id="loader"></div>
     </div>
-
-    <script>
-        let web3;
-
-        // Check if Web3 is injected
-        if (typeof window.ethereum !== 'undefined') {
-            web3 = new Web3(window.ethereum);
-            window.ethereum.request({ method: 'eth_requestAccounts' }) 
-                .then(() => {
-                    console.log('Web3 initialized');
-                })
-                .catch(error => {
-                    console.error('User denied account access:', error);
-                    alert('Please allow access to your Ethereum account.');
-                });
-        } else {
-            alert('Please install MetaMask!');
-        }
-
-        // Function to track wallet balance
-        function trackWallet() {
-            const address = document.getElementById('wallet_address').value;
-
-            if (web3 && web3.utils.isAddress(address)) {
-                web3.eth.getBalance(address)
-                    .then(balance => {
-                        const balanceEth = web3.utils.fromWei(balance, 'ether');
-                        document.getElementById('result').innerText = `Balance of ${address}: ${balanceEth} ETH`;
-                    })
-                    .catch(error => {
-                        document.getElementById('result').innerText = 'Error fetching balance.';
-                        console.error(error);
-                    });
-            } else {
-                document.getElementById('result').innerText = 'Invalid Ethereum address or Web3 not initialized!';
-            }
-        }
-
-        // Function to fetch and visualize transactions
-        function visualizeTransactions(includeFilters = true) {
-            const address = document.getElementById('wallet_address').value;
-            const minAmount = includeFilters ? parseFloat(document.getElementById('min_amount').value) || 0 : 0;
-            const maxAmount = includeFilters ? parseFloat(document.getElementById('max_amount').value) || Infinity : Infinity;
-            const startDate = includeFilters ? new Date(document.getElementById('start_date').value).getTime() / 1000 || 0 : 0;
-            const endDate = includeFilters ? new Date(document.getElementById('end_date').value).getTime() / 1000 || Infinity : Infinity;
-
-            if (!web3.utils.isAddress(address)) {
-                alert('Invalid Ethereum address');
-                return;
-            }
-
-            const etherscanApiKey = 'NMJBX9W6W49S8CP32XP1X8INE3TDXCJ7C9'; // Replace with your Sepolia API key
-            const url = `https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${etherscanApiKey}`;
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === '1') {
-                        const transactions = data.result
-                            .map(tx => ({
-                                from: tx.from,
-                                to: tx.to,
-                                value: web3.utils.fromWei(tx.value, 'ether'),
-                                hash: tx.hash,
-                                timestamp: tx.timeStamp
-                            }))
-                            .filter(tx => tx.value >= minAmount && tx.value <= maxAmount && tx.timestamp >= startDate && tx.timestamp <= endDate);
-
-                        drawGraph(transactions);
-                    } else {
-                        alert('No transactions found for this wallet.');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching transactions:', error);
-                });
-        }
-
-        // Function to draw the graph using D3.js
-        function drawGraph(transactions) {
-            // Clear existing graph
-            document.getElementById('graph-container').innerHTML = '';
-
-            const width = 800;
-            const height = 600;
-
-            const svg = d3.select('#graph-container')
-                .append('svg')
-                .attr('width', width)
-                .attr('height', height)
-                .call(d3.zoom().scaleExtent([0.5, 3]).on('zoom', zoom))
-                .append('g');
-
-            const nodes = {};
-            transactions.forEach(tx => {
-                nodes[tx.from] = { id: tx.from };
-                nodes[tx.to] = { id: tx.to };
-            });
-
-            const links = transactions.map(tx => ({
-                source: tx.from,
-                target: tx.to,
-                value: tx.value,
-                hash: tx.hash,
-                timestamp: tx.timestamp
-            }));
-
-            const simulation = d3.forceSimulation(Object.values(nodes))
-                .force('link', d3.forceLink(links).id(d => d.id).distance(100))
-                .force('charge', d3.forceManyBody().strength(-500))
-                .force('center', d3.forceCenter(width / 2, height / 2));
-
-            const link = svg.append('g')
-                .selectAll('line')
-                .data(links)
-                .enter()
-                .append('line')
-                .attr('stroke', d => d.value > 1 ? 'red' : '#999')
-                .attr('stroke-width', d => Math.sqrt(d.value))
-                .on('mouseover', function(event, d) {
-                    d3.select(this).classed('highlighted', true);
-                    d3.selectAll('circle')
-                        .filter(node => node.id === d.source || node.id === d.target)
-                        .attr('fill', 'orange');
-                    tooltip.html(`Transaction Hash: ${d.hash}<br>Timestamp: ${new Date(d.timestamp * 1000).toLocaleString()}<br>Amount: ${d.value} ETH`)
-                        .style('visibility', 'visible');
-                })
-                .on('mousemove', function(event) {
-                    tooltip.style('top', (event.pageY + 5) + 'px')
-                        .style('left', (event.pageX + 5) + 'px');
-                })
-                .on('mouseout', function() {
-                    d3.select(this).classed('highlighted', false);
-                    d3.selectAll('circle').attr('fill', '#69b3a2');
-                    tooltip.style('visibility', 'hidden');
-                });
-
-            const node = svg.append('g')
-                .selectAll('circle')
-                .data(Object.values(nodes))
-                .enter()
-                .append('circle')
-                .attr('r', 5)
-                .attr('fill', '#69b3a2')
-                .call(d3.drag()
-                    .on('start', dragStarted)
-                    .on('drag', dragged)
-                    .on('end', dragEnded))
-                .on('mouseover', function(event, d) {
-                    d3.select(this).classed('zoomed', true);
-                    tooltip.html(`Address: ${d.id}<br>Transactions: ${transactions.filter(tx => tx.from === d.id || tx.to === d.id).length}`)
-                        .style('visibility', 'visible');
-                })
-                .on('mousemove', function(event) {
-                    tooltip.style('top', (event.pageY + 5) + 'px')
-                        .style('left', (event.pageX + 5) + 'px');
-                })
-                .on('mouseout', function() {
-                    d3.select(this).classed('zoomed', false);
-                    tooltip.style('visibility', 'hidden');
-                });
-
-            const tooltip = d3.select('body').append('div')
-                .attr('class', 'tooltip')
-                .style('visibility', 'hidden');
-
-            simulation.on('tick', () => {
-                link
-                    .attr('x1', d => d.source.x)
-                    .attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x)
-                    .attr('y2', d => d.target.y);
-
-                node
-                    .attr('cx', d => d.x)
-                    .attr('cy', d => d.y);
-            });
-
-            function zoom(event) {
-                svg.attr('transform', event.transform);
-            }
-
-            function dragStarted(event, d) {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
-                d.fx = d.x;
-                d.fy = d.y;
-            }
-
-            function dragged(event, d) {
-                d.fx = event.x;
-                d.fy = event.y;
-            }
-
-            function dragEnded(event, d) {
-                if (!event.active) simulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
-            }
-        }
-    </script>
+    <script src="static/track.js"></script>
 </body>
 </html>
