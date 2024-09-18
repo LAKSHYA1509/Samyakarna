@@ -298,3 +298,21 @@ function compareWithHistoricalData(transactions) {
     // Implementation would depend on the source of historical data
     console.log('Comparing with historical data:', transactions);
 }
+
+// Function to check if an address is blacklisted using an external API
+function checkBlacklistedAddress(address) {
+    const url = `https://external-api.com/checkAddress?address=${address}`; // Example API endpoint, replace with actual URL
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.isBlacklisted) {
+                alert(`Address ${address} is blacklisted.`);
+            } else {
+                console.log(`Address ${address} is clean.`);
+            }
+        })
+        .catch(error => {
+            console.error('Error checking blacklisted address:', error);
+        });
+}
