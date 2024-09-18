@@ -1,6 +1,5 @@
 let web3;
 
-// Check if Web3 is injected
 if (typeof window.ethereum !== 'undefined') {
     web3 = new Web3(window.ethereum);
     window.ethereum.request({ method: 'eth_requestAccounts' })
@@ -15,7 +14,6 @@ if (typeof window.ethereum !== 'undefined') {
     alert('Please install MetaMask!');
 }
 
-// Function to track wallet balance
 function trackWallet() {
     const address = document.getElementById('wallet_address').value;
 
@@ -34,7 +32,6 @@ function trackWallet() {
     }
 }
 
-// Function to fetch and visualize transactions
 function visualizeTransactions(includeFilters = true) {
     const address = document.getElementById('wallet_address').value;
     if (!web3.utils.isAddress(address)) {
@@ -69,9 +66,7 @@ function visualizeTransactions(includeFilters = true) {
         });
 }
 
-// Function to draw the graph using D3.js
 function drawGraph(transactions) {
-    // Clear existing graph
     document.getElementById('graph-container').innerHTML = '';
 
     const width = 800;
@@ -106,7 +101,7 @@ function drawGraph(transactions) {
         .data(links)
         .enter()
         .append('line')
-        .attr('stroke', '#ffb3b3') // Changed to black
+        .attr('stroke', '#ffb3b3')
         .attr('stroke-width', d => Math.sqrt(d.value) * 2);
 
     const node = svg.append('g')
@@ -115,7 +110,7 @@ function drawGraph(transactions) {
         .enter()
         .append('circle')
         .attr('r', 8)
-        .attr('fill', '#ff5733') // Changed to orange
+        .attr('fill', '#ff5733')
         .call(d3.drag()
             .on('start', dragStarted)
             .on('drag', dragged)
@@ -134,7 +129,7 @@ function drawGraph(transactions) {
         .text(d => d.id);
 
     node.on('mouseenter', function(event, d) {
-        d3.select(this).attr('fill', 'orange'); // Highlight node
+        d3.select(this).attr('fill', 'orange');
         tooltip.html(`Wallet Address: ${d.id}`)
             .style('visibility', 'visible');
     })
@@ -143,12 +138,12 @@ function drawGraph(transactions) {
             .style('left', (event.pageX + 5) + 'px');
     })
     .on('mouseleave', function() {
-        d3.select(this).attr('fill', '#ff5733'); // Reset node color
+        d3.select(this).attr('fill', '#ff5733');
         tooltip.style('visibility', 'hidden');
     });
 
     link.on('mouseenter', function(event, d) {
-        d3.select(this).attr('stroke', 'orange'); // Highlight link
+        d3.select(this).attr('stroke', 'orange');
         tooltip.html(`Transaction Hash: ${d.hash}<br>Timestamp: ${new Date(d.timestamp * 1000).toLocaleString()}<br>Amount: ${d.value} ETH`)
             .style('visibility', 'visible');
     })
@@ -157,7 +152,7 @@ function drawGraph(transactions) {
             .style('left', (event.pageX + 5) + 'px');
     })
     .on('mouseleave', function() {
-        d3.select(this).attr('stroke', '#000'); // Reset link color
+        d3.select(this).attr('stroke', '#000');
         tooltip.style('visibility', 'hidden');
     });
 
@@ -191,12 +186,10 @@ function drawGraph(transactions) {
     }
 }
 
-// Function to update the transaction table
 function updateTransactionTable(transactions) {
     const tbody = document.getElementById('transaction-table-body');
-    tbody.innerHTML = ''; // Clear existing table rows
+    tbody.innerHTML = '';
 
-    // Sort transactions by value in descending order
     transactions.sort((a, b) => b.value - a.value);
 
     transactions.forEach(tx => {
@@ -211,7 +204,6 @@ function updateTransactionTable(transactions) {
 }
 
 
-// Function to export the graph as a PDF
 document.getElementById('exportButton').addEventListener('click', () => {
     html2canvas(document.getElementById('graph-container')).then(canvas => {
         const imgData = canvas.toDataURL('image/png');
@@ -221,14 +213,12 @@ document.getElementById('exportButton').addEventListener('click', () => {
     });
 });
 
-// Flag transactions based on value
 function flagTransactions(transactions) {
-    const threshold = 5; // Set a threshold for flagging
+    const threshold = 5;
     const flagged = transactions.filter(tx => tx.value > threshold);
     
-    // Display flagged transactions
     const tableBody = document.getElementById('transaction-table-body');
-    tableBody.innerHTML = ''; // Clear existing rows
+    tableBody.innerHTML = '';
 
     flagged.forEach(tx => {
         const row = document.createElement('tr');
@@ -237,13 +227,12 @@ function flagTransactions(transactions) {
             <td>${tx.to}</td>
             <td>${tx.value}</td>
         `;
-        row.style.backgroundColor = '#ffdddd'; // Highlight flagged rows
+        row.style.backgroundColor = '#ffdddd';
         tableBody.appendChild(row);
     });
 }
 
-// Tag addresses
-const taggedAddresses = {}; // Store tagged addresses and their labels
+const taggedAddresses = {};
 
 function tagAddress() {
     const address = document.getElementById('tag_address').value;
@@ -258,7 +247,6 @@ function tagAddress() {
     }
 }
 
-// Display tagged addresses
 function displayTaggedAddresses() {
     const taggedList = document.getElementById('tagged-addresses');
     taggedList.innerHTML = '';
@@ -270,49 +258,7 @@ function displayTaggedAddresses() {
     }
 }
 
-// Search transactions
-function searchTransactions() {
-    const keyword = document.getElementById('searchKeyword').value.toLowerCase();
-    
-    if (keyword) {
-        const rows = document.querySelectorAll('#transaction-table-body tr');
-        rows.forEach(row => {
-            const cells = row.getElementsByTagName('td');
-            let found = false;
-            for (let i = 0; i < cells.length; i++) {
-                if (cells[i].innerText.toLowerCase().includes(keyword)) {
-                    found = true;
-                    break;
-                }
-            }
-            row.style.display = found ? '' : 'none';
-        });
-    } else {
-        document.querySelectorAll('#transaction-table-body tr').forEach(row => row.style.display = '');
-    }
-}
-
-// Compare with historical data
 function compareWithHistoricalData(transactions) {
-    // Placeholder function for comparing transactions with historical data
-    // Implementation would depend on the source of historical data
-    console.log('Comparing with historical data:', transactions);
-}
 
-// Function to check if an address is blacklisted using an external API
-function checkBlacklistedAddress(address) {
-    const url = `https://external-api.com/checkAddress?address=${address}`; // Example API endpoint, replace with actual URL
-    
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data.isBlacklisted) {
-                alert(`Address ${address} is blacklisted.`);
-            } else {
-                console.log(`Address ${address} is clean.`);
-            }
-        })
-        .catch(error => {
-            console.error('Error checking blacklisted address:', error);
-        });
+    console.log('Comparing with historical data:', transactions);
 }

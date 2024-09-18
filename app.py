@@ -15,7 +15,7 @@ def buri():
 @app.route('/check_blacklist', methods=['POST'])
 def check_blacklist():
     wallet_address = request.form['wallet_address']
-    chain_id = 1  # Example for Ethereum, change as needed
+    chain_id = 1
     
     url = 'https://aml.blocksec.com/address-compliance/api/v3/risk-score'
     headers = {
