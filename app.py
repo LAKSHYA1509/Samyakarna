@@ -19,7 +19,7 @@ def check_blacklist():
     
     url = 'https://aml.blocksec.com/address-compliance/api/v3/risk-score'
     headers = {
-        'API-KEY': '77194f0c2ec81d509d709808e354effba1b9a33d8ad4bcaa048d5d3622f1b437',
+        'API-KEY': '3bc48284b7661dd88ba66f14137c00dc5446f46937822a8c0b0a3c4c6eb5824c',
         'Content-Type': 'application/json'
     }
     payload = {

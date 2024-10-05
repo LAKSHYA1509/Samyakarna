@@ -62,6 +62,11 @@
         #transaction-table th {
             background-color: #f4f4f4;
         }
+        #graph-container {
+            width: 100%;
+            height: 500px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -97,7 +102,7 @@
             <button type="button" class="btn btn-secondary" onclick="visualizeTransactions()">Apply Filters</button>
             <button type="button" class="btn btn-secondary" onclick="visualizeTransactions(false)">Visualize All</button>
         </form>
-        <div id="graph-container" style="width: 800px; height: 600px;"></div>
+        <div id="graph-container" style="width: 1250px; height: 600px;"></div>
         <button id="exportButton" class="btn btn-primary mt-3">Export Graph as PDF</button>
 
 
@@ -125,6 +130,7 @@
                 </thead>
                 <tbody id="transaction-table-body"></tbody>
             </table>
+            <audio id="chime-sound" src="static/chime.mp3"></audio>
         </div>
 
         <div id="loader"></div>

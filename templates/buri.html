@@ -16,35 +16,46 @@
 
     <script>
         function checkBlacklist() {
-    const address = document.getElementById('wallet_address').value;
+            const address = document.getElementById('wallet_address').value;
 
-    fetch('/check_blacklist', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({ 'wallet_address': address })
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Response data:', data);  // Log the response data
-        const statusElement = document.getElementById('status');
-        
-        if (data.status === 'success') {
-            const riskScore = data.risk_score;
-            const indicators = data.risk_indicators.map(ind => ind.indicator.name).join(', ');
-            statusElement.innerText = `Risk Score: ${riskScore}. Risk Indicators: ${indicators}`;
-            statusElement.style.color = 'green';
-        } else {
-            statusElement.innerText = data.message;
-            statusElement.style.color = 'orange';
+            fetch('/check_blacklist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({ 'wallet_address': address })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Response data:', data);  // Log the response data
+                const statusElement = document.getElementById('status');
+                
+                if (data.status === 'success') {
+                    const riskScore = data.risk_score;
+                    const indicators = data.risk_indicators.map(ind => ind.indicator.name).join(', ');
+                    statusElement.innerText = `Risk Score: ${riskScore}. Risk Indicators: ${indicators}`;
+                    statusElement.style.color = 'green';
+
+                    if (riskScore > 0) {
+                        speakScammedAlert();
+                    }
+                } else {
+                    statusElement.innerText = data.message;
+                    statusElement.style.color = 'orange';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('status').innerText = 'Given Account is not possessed with any type of SCAM';
+            });
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('status').innerText = 'Error checking blacklist status.';
-    });
-}
-</script>
+
+        function speakScammedAlert() {
+            const message = "This is a scammed account. Please be aware!";
+            const speech = new SpeechSynthesisUtterance(message);
+            speech.lang = 'en-US';  // Set the language (adjust if needed)
+            window.speechSynthesis.speak(speech);
+        }
+    </script>
 </body>
 </html>

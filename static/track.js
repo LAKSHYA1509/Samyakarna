@@ -32,6 +32,8 @@ function trackWallet() {
     }
 }
 
+const chimeSound = new Audio('chime.mp3');
+
 function visualizeTransactions(includeFilters = true) {
     const address = document.getElementById('wallet_address').value;
     if (!web3.utils.isAddress(address)) {
@@ -69,7 +71,7 @@ function visualizeTransactions(includeFilters = true) {
 function drawGraph(transactions) {
     document.getElementById('graph-container').innerHTML = '';
 
-    const width = 800;
+    const width = 1100;
     const height = 600;
 
     const svg = d3.select('#graph-container')
@@ -245,6 +247,25 @@ function tagAddress() {
     } else {
         alert('Invalid address');
     }
+}
+
+function showTop5Transactions(transactions) {
+    // Sort transactions by value (highest first)
+    const top5Transactions = transactions
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5); // Take the top 5
+
+    // Build alert message
+    let alertMessage = 'Top 5 transactions:\n';
+    top5Transactions.forEach((tx, index) => {
+        alertMessage += `#${index + 1}: ${tx.value} ETH\nFrom: ${tx.from}\nTo: ${tx.to}\n\n`;
+    });
+
+    // Show alert
+    alert(alertMessage);
+
+    // Play chime sound
+    chimeSound.play();
 }
 
 function displayTaggedAddresses() {
