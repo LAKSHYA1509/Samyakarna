@@ -4,12 +4,18 @@ import requests;
 
 app = Flask(__name__)
 
-@app.route('/')
-def home():
+@app.route('/track')
+def track():
     return render_template('track.html')
 @app.route('/buri')
 def buri():
     return render_template('buri.html')
+@app.route('/')
+def index():
+    return render_template('index.html')
+@app.route('/home')
+def home():
+    return render_template('home.html')
 
 
 @app.route('/check_blacklist', methods=['POST'])
