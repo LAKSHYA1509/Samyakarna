@@ -31,9 +31,6 @@ function trackWallet() {
         document.getElementById('result').innerText = 'Invalid Ethereum address or Web3 not initialized!';
     }
 }
-
-const chimeSound = new Audio('chime.mp3');
-
 function visualizeTransactions(includeFilters = true) {
     const address = document.getElementById('wallet_address').value;
     if (!web3.utils.isAddress(address)) {
@@ -59,6 +56,7 @@ function visualizeTransactions(includeFilters = true) {
 
                 drawGraph(transactions);
                 updateTransactionTable(transactions);
+                sendAlerts(transactions);
             } else {
                 alert('No transactions found for this wallet.');
             }
@@ -249,25 +247,6 @@ function tagAddress() {
     }
 }
 
-function showTop5Transactions(transactions) {
-    // Sort transactions by value (highest first)
-    const top5Transactions = transactions
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5); // Take the top 5
-
-    // Build alert message
-    let alertMessage = 'Top 5 transactions:\n';
-    top5Transactions.forEach((tx, index) => {
-        alertMessage += `#${index + 1}: ${tx.value} ETH\nFrom: ${tx.from}\nTo: ${tx.to}\n\n`;
-    });
-
-    // Show alert
-    alert(alertMessage);
-
-    // Play chime sound
-    chimeSound.play();
-}
-
 function displayTaggedAddresses() {
     const taggedList = document.getElementById('tagged-addresses');
     taggedList.innerHTML = '';
@@ -279,7 +258,35 @@ function displayTaggedAddresses() {
     }
 }
 
-function compareWithHistoricalData(transactions) {
+function sendAlerts(transactions) {
+    const alertThreshold = 5;
+    const speechThreshold = 10; // This threshold is for counting transactions for speech
+    const walletAddress = ' '; // Replace with actual wallet address
 
-    console.log('Comparing with historical data:', transactions);
+    const highValueTransactions = transactions.filter(tx => tx.value > alertThreshold);
+
+    const speechCountTransactions = transactions.filter(tx => tx.value > speechThreshold);
+
+    highValueTransactions.sort((a, b) => b.value - a.value);
+
+    const topTransactions = highValueTransactions.slice(0, 5);
+
+    topTransactions.forEach(tx => {
+        alert(`High-value transaction detected: ${tx.from} -> ${tx.to} (${tx.value} ETH)`);
+    });
+
+    if (speechCountTransactions.length > 0) {
+        speakScammedAlert(walletAddress, speechCountTransactions.length);
+    }
+}
+
+function speakScammedAlert(walletAddress, transactionCount) {
+    const message = `The following wallet, ${walletAddress}, has been involved in transactions of more than 10 ETH ${transactionCount} times. Check Sadvik for blacklisted wallet check and proceed ahead.`;
+    
+    const speech = new SpeechSynthesisUtterance(message);
+    speech.lang = 'en-US';
+    speech.rate = 1;
+    speech.pitch = 1;
+    
+    window.speechSynthesis.speak(speech);
 }
