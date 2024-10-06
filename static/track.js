@@ -152,7 +152,7 @@ function drawGraph(transactions) {
             .style('left', (event.pageX + 5) + 'px');
     })
     .on('mouseleave', function() {
-        d3.select(this).attr('stroke', '#000');
+        d3.select(this).attr('stroke', 'orange');
         tooltip.style('visibility', 'hidden');
     });
 
