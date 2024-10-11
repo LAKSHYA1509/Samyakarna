@@ -73,6 +73,11 @@ Hamara Sankalp, Logo ki Sahayata iss VISH ko mitane mein
 
 ---
 
+**Deployment**
+
+The application will be available at [https://lakshya150903.pythonanywhere.com](https://lakshya150903.pythonanywhere.com).
+---
+
 ## User Guide
 
 1. **Track Wallet Balance**:
