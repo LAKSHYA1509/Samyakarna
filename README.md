@@ -2,6 +2,7 @@
 
 Hamara Sankalp, Logo ki Sahayata iss VISH ko mitane mein
 
+## Parent Repository: [Sankalp](https://github.com/LAKSHYA1509/HackIndia-Spark-3-Hackn-Roll)
 
 **Samyakaran** is a Web3-based decentralized application designed to track cryptocurrency transactions linked to drug trafficking activities. The tool offers a transparent and interactive way for narcotics control authorities to identify suspicious wallet addresses and their transaction patterns using Ethereum blockchain data.
 
